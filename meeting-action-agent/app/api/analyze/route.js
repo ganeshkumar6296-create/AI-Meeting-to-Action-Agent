@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 
 export async function POST(request) {
@@ -14,7 +13,8 @@ export async function POST(request) {
 
     const apiKey = process.env.FREE_LLM_API_KEY;
     const baseUrl = process.env.FREE_LLM_BASE_URL;
-    const model = "llama-3.1-8b-instant";
+    // FreeLLMAPI par Gemini 3.7 Flash active model hai
+    const model = process.env.FREE_LLM_MODEL || "gemini-3.7-flash";
 
     if (!apiKey || !baseUrl || !model) {
       return NextResponse.json(
@@ -62,6 +62,7 @@ Return strictly valid JSON:
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
+          "Bypass-Tunnel-Reminder": "true",
         },
         body: JSON.stringify({
           model,
