@@ -1,23 +1,29 @@
+
 import { NextResponse } from "next/server";
 
 export async function POST(request) {
   try {
     const { transcript } = await request.json();
 
-    if (!transcript || !transcript.trim()) {
+    if (
+      typeof transcript !== "string" ||
+      !transcript.trim()
+    ) {
       return NextResponse.json(
         { error: "Transcript is required" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
-    const apiKey = "freellmapi-8719421723ac4968de36de1de662c836c67b8867b2197255";
-    const baseUrl = "http://127.0.0.1:31415/v1";
-    const model = "auto";
-    if (!apiKey || !baseUrl || !model) {
+    // FreeLLMAPI credentials
+    const apiKey = process.env.FREE_LLM_API_KEY;
+    const baseUrl = process.env.FREE_LLM_BASE_URL;
+    const model = process.env.FREE_LLM_MODEL || "auto";
+
+    if (!apiKey || !baseUrl) {
       return NextResponse.json(
         { error: "Missing FreeLLMAPI environment variables" },
-        { status: 500 },
+        { status: 500 }
       );
     }
 
@@ -25,6 +31,7 @@ export async function POST(request) {
 You are an expert AI Executive Meeting Assistant.
 
 Analyze the meeting transcript and extract:
+
 1. Executive Summary
 2. Decisions
 3. Action Items with owner, deadline and priority
@@ -32,6 +39,7 @@ Analyze the meeting transcript and extract:
 5. Contradictions or Ambiguities
 
 Return strictly valid JSON:
+
 {
   "summary": "string",
   "decisions": ["string"],
@@ -51,21 +59,26 @@ Return strictly valid JSON:
     }
   ]
 }
+
+Do not include Markdown code fences.
+Return only valid JSON.
 `;
 
     const response = await fetch(
-      `${baseUrl.replace(/\/$/, "")}/chat/completions`,
+      `${baseUrl.replace(/\/+$/, "")}/chat/completions`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
-          "Bypass-Tunnel-Reminder": "true",
         },
         body: JSON.stringify({
           model,
           messages: [
-            { role: "system", content: systemPrompt },
+            {
+              role: "system",
+              content: systemPrompt,
+            },
             {
               role: "user",
               content: `Meeting transcript:\n\n${transcript}`,
@@ -73,7 +86,7 @@ Return strictly valid JSON:
           ],
           temperature: 0.2,
         }),
-      },
+      }
     );
 
     if (!response.ok) {
@@ -82,21 +95,22 @@ Return strictly valid JSON:
       console.error("FreeLLMAPI Error:", errorText);
 
       return NextResponse.json(
-        { error: `FreeLLMAPI Error: ${errorText}` },
-        { status: response.status },
+        { error: "FreeLLMAPI request failed" },
+        { status: 502 }
       );
     }
 
     const result = await response.json();
 
-    const rawContent = result.choices?.[0]?.message?.content;
+    const rawContent =
+      result.choices?.[0]?.message?.content;
 
     if (!rawContent) {
       throw new Error("Empty response from AI provider");
     }
 
     const cleaned = rawContent
-      .replace(/^```json\s*/i, "")
+      .replace(/^```(?:json)?\s*/i, "")
       .replace(/\s*```$/, "")
       .trim();
 
@@ -106,6 +120,7 @@ Return strictly valid JSON:
       success: true,
       data: parsedData,
     });
+
   } catch (error) {
     console.error("Analyze API Error:", error);
 
@@ -114,7 +129,7 @@ Return strictly valid JSON:
         error: "Failed to process meeting transcript",
         details: error.message,
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
