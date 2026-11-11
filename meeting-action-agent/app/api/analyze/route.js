@@ -1,13 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 
 export async function POST(request) {
   try {
     const { transcript } = await request.json();
 
-    if (!transcript || transcript.trim() === '') {
+    if (!transcript || transcript.trim() === "") {
       return NextResponse.json(
-        { error: 'Transcript is required' },
-        { status: 400 }
+        { error: "Transcript is required" },
+        { status: 400 },
       );
     }
 
@@ -42,19 +42,23 @@ Output strictly valid JSON with no markdown wrapping, backticks, or extra commen
 }
 `;
 
-    const baseUrl = process.env.FREE_LLM_BASE_URL || 'http://127.0.0.1:31415/v1';
+    const baseUrl =
+      process.env.FREE_LLM_BASE_URL || "http://127.0.0.1:31415/v1";
 
     const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.FREE_LLM_API_KEY}`,
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.FREE_LLM_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'auto', // FreeLLMAPI auto route kar deta hai best free provider par
+        model: "llama-3.3-70b-versatile", // Groq ka best & free model
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Here is the meeting transcript:\n\n${transcript}` }
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: `Here is the meeting transcript:\n\n${transcript}`,
+          },
         ],
         temperature: 0.2,
       }),
@@ -62,21 +66,26 @@ Output strictly valid JSON with no markdown wrapping, backticks, or extra commen
 
     if (!response.ok) {
       const errData = await response.text();
-      return NextResponse.json({ error: `LLM API Error: ${errData}` }, { status: response.status });
+      return NextResponse.json(
+        { error: `LLM API Error: ${errData}` },
+        { status: response.status },
+      );
     }
 
     const data = await response.json();
     const rawContent = data.choices[0].message.content.trim();
 
-    const cleanedJsonString = rawContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    const cleanedJsonString = rawContent
+      .replace(/^```json\s*/, "")
+      .replace(/\s*```$/, "");
     const parsedData = JSON.parse(cleanedJsonString);
 
     return NextResponse.json({ success: true, data: parsedData });
   } catch (error) {
-    console.error('Error in analyze API:', error);
+    console.error("Error in analyze API:", error);
     return NextResponse.json(
-      { error: 'Failed to process meeting transcript', details: error.message },
-      { status: 500 }
+      { error: "Failed to process meeting transcript", details: error.message },
+      { status: 500 },
     );
   }
 }
