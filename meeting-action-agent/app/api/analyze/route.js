@@ -1,26 +1,39 @@
+
 import { NextResponse } from "next/server";
 
 export async function POST(request) {
   try {
     const { transcript } = await request.json();
 
-    if (!transcript || transcript.trim() === "") {
+    if (!transcript || !transcript.trim()) {
       return NextResponse.json(
         { error: "Transcript is required" },
-        { status: 400 },
+        { status: 400 }
+      );
+    }
+
+    const apiKey = process.env.FREE_LLM_API_KEY;
+    const baseUrl = process.env.FREE_LLM_BASE_URL;
+    const model = "llama-3.1-8b-instant";
+
+    if (!apiKey || !baseUrl || !model) {
+      return NextResponse.json(
+        { error: "Missing FreeLLMAPI environment variables" },
+        { status: 500 }
       );
     }
 
     const systemPrompt = `
 You are an expert AI Executive Meeting Assistant.
-Analyze the provided meeting transcript and extract:
-1. Executive Summary: Short human-readable recap.
-2. Decisions: Key agreements made during the meeting.
-3. Action Items: Actionable tasks, with owner, explicit or implied deadline, and priority (High/Medium/Low).
-4. Unresolved Questions: Open topics or doubts that need future answers.
-5. Contradictions or Ambiguities: Conflicting statements, unclear instructions, or overlapping task ownership.
 
-Output strictly valid JSON with no markdown wrapping, backticks, or extra commentary. Structure:
+Analyze the meeting transcript and extract:
+1. Executive Summary
+2. Decisions
+3. Action Items with owner, deadline and priority
+4. Unresolved Questions
+5. Contradictions or Ambiguities
+
+Return strictly valid JSON:
 {
   "summary": "string",
   "decisions": ["string"],
@@ -29,7 +42,7 @@ Output strictly valid JSON with no markdown wrapping, backticks, or extra commen
       "task": "string",
       "owner": "string",
       "deadline": "string",
-      "priority": "High" | "Medium" | "Low"
+      "priority": "High | Medium | Low"
     }
   ],
   "unresolved_questions": ["string"],
@@ -42,50 +55,69 @@ Output strictly valid JSON with no markdown wrapping, backticks, or extra commen
 }
 `;
 
-    const baseUrl =
-      process.env.FREE_LLM_BASE_URL || "http://127.0.0.1:31415/v1";
-
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.FREE_LLM_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile", // Groq ka best & free model
-        messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: `Here is the meeting transcript:\n\n${transcript}`,
-          },
-        ],
-        temperature: 0.2,
-      }),
-    });
+    const response = await fetch(
+      `${baseUrl.replace(/\/$/, "")}/chat/completions`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: `Meeting transcript:\n\n${transcript}`,
+            },
+          ],
+          temperature: 0.2,
+        }),
+      }
+    );
 
     if (!response.ok) {
-      const errData = await response.text();
+      const errorText = await response.text();
+
+      console.error("FreeLLMAPI Error:", errorText);
+
       return NextResponse.json(
-        { error: `LLM API Error: ${errData}` },
-        { status: response.status },
+        { error: `FreeLLMAPI Error: ${errorText}` },
+        { status: response.status }
       );
     }
 
-    const data = await response.json();
-    const rawContent = data.choices[0].message.content.trim();
+    const result = await response.json();
 
-    const cleanedJsonString = rawContent
-      .replace(/^```json\s*/, "")
-      .replace(/\s*```$/, "");
-    const parsedData = JSON.parse(cleanedJsonString);
+    const rawContent =
+      result.choices?.[0]?.message?.content;
 
-    return NextResponse.json({ success: true, data: parsedData });
+    if (!rawContent) {
+      throw new Error("Empty response from AI provider");
+    }
+
+    const cleaned = rawContent
+      .replace(/^```json\s*/i, "")
+      .replace(/\s*```$/, "")
+      .trim();
+
+    const parsedData = JSON.parse(cleaned);
+
+    return NextResponse.json({
+      success: true,
+      data: parsedData,
+    });
+
   } catch (error) {
-    console.error("Error in analyze API:", error);
+    console.error("Analyze API Error:", error);
+
     return NextResponse.json(
-      { error: "Failed to process meeting transcript", details: error.message },
-      { status: 500 },
+      {
+        error: "Failed to process meeting transcript",
+        details: error.message,
+      },
+      { status: 500 }
     );
   }
 }
