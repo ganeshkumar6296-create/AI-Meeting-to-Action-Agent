@@ -7,18 +7,17 @@ export async function POST(request) {
     if (!transcript || !transcript.trim()) {
       return NextResponse.json(
         { error: "Transcript is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const apiKey = process.env.FREE_LLM_API_KEY;
-    const baseUrl = process.env.FREE_LLM_BASE_URL;
-    // FreeLLMAPI par Gemini 3.7 Flash active model hai
-    const model = process.env.FREE_LLM_MODEL || "auto";
+    const apiKey = "freellmapi-8719421723ac4968de36de1de662c836c67b8867b2197255";
+    const baseUrl = "http://127.0.0.1:31415/v1";
+    const model = "auto";
     if (!apiKey || !baseUrl || !model) {
       return NextResponse.json(
         { error: "Missing FreeLLMAPI environment variables" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -74,7 +73,7 @@ Return strictly valid JSON:
           ],
           temperature: 0.2,
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -84,14 +83,13 @@ Return strictly valid JSON:
 
       return NextResponse.json(
         { error: `FreeLLMAPI Error: ${errorText}` },
-        { status: response.status }
+        { status: response.status },
       );
     }
 
     const result = await response.json();
 
-    const rawContent =
-      result.choices?.[0]?.message?.content;
+    const rawContent = result.choices?.[0]?.message?.content;
 
     if (!rawContent) {
       throw new Error("Empty response from AI provider");
@@ -108,7 +106,6 @@ Return strictly valid JSON:
       success: true,
       data: parsedData,
     });
-
   } catch (error) {
     console.error("Analyze API Error:", error);
 
@@ -117,7 +114,7 @@ Return strictly valid JSON:
         error: "Failed to process meeting transcript",
         details: error.message,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
